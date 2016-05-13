@@ -954,14 +954,9 @@ int kexec_load_purgatory(struct kimage *image, unsigned long min,
 		return ret;
 
 	ret = kexec_apply_relocations(image);
-	if (ret)
-		goto out;
+	if (!ret)
+		*load_addr = pi->purgatory_load_addr;
 
-	*load_addr = pi->purgatory_load_addr;
-	return 0;
-out:
-	vfree(pi->sechdrs);
-	vfree(pi->purgatory_buf);
 	return ret;
 }
 
