@@ -176,6 +176,7 @@ struct kexec_buf {
 int __weak arch_kexec_walk_mem(struct kexec_buf *kbuf,
 			       int (*func)(u64, u64, void *));
 extern int kexec_add_buffer(struct kexec_buf *kbuf);
+int kexec_locate_mem_hole(struct kexec_buf *kbuf);
 int __weak arch_kexec_verify_buffer(enum kexec_file_type type, const void *buf,
 				    unsigned long size);
 #endif /* CONFIG_KEXEC_FILE */
