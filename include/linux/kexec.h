@@ -100,6 +100,9 @@ struct kexec_segment {
 	size_t bufsz;
 	unsigned long mem;
 	size_t memsz;
+
+	/* Whether this segment is part of the checksum calculation. */
+	bool do_checksum;
 };
 
 #ifdef CONFIG_COMPAT
@@ -175,7 +178,7 @@ struct kexec_buf {
 
 int __weak arch_kexec_walk_mem(struct kexec_buf *kbuf,
 			       int (*func)(u64, u64, void *));
-extern int kexec_add_buffer(struct kexec_buf *kbuf);
+extern int kexec_add_buffer(struct kexec_buf *kbuf, bool checksum);
 int kexec_locate_mem_hole(struct kexec_buf *kbuf);
 int __weak arch_kexec_verify_buffer(enum kexec_file_type type, const void *buf,
 				    unsigned long size);
@@ -393,7 +396,7 @@ bool __weak kexec_can_hand_over_buffer(void);
 int __weak arch_kexec_add_handover_buffer(struct kimage *image,
 					  unsigned long load_addr,
 					  unsigned long size);
-int kexec_add_handover_buffer(struct kexec_buf *kbuf);
+int kexec_add_handover_buffer(struct kexec_buf *kbuf, bool checksum);
 int __weak kexec_get_handover_buffer(void **addr, unsigned long *size);
 int __weak kexec_free_handover_buffer(void);
 #else
@@ -402,7 +405,8 @@ static inline bool kexec_can_hand_over_buffer(void)
 	return false;
 }
 
-static inline int kexec_add_handover_buffer(struct kexec_buf *kbuf)
+static inline int kexec_add_handover_buffer(struct kexec_buf *kbuf,
+					    bool checksum)
 {
 	return -ENOTSUPP;
 }

@@ -422,7 +422,7 @@ static void *bzImage64_load(struct kimage *image, char *kernel,
 	kbuf.memsz = kbuf.bufsz;
 	kbuf.buf_align = 16;
 	kbuf.buf_min = MIN_BOOTPARAM_ADDR;
-	ret = kexec_add_buffer(&kbuf);
+	ret = kexec_add_buffer(&kbuf, true);
 	if (ret)
 		goto out_free_params;
 	bootparam_load_addr = kbuf.mem;
@@ -435,7 +435,7 @@ static void *bzImage64_load(struct kimage *image, char *kernel,
 	kbuf.memsz = PAGE_ALIGN(header->init_size);
 	kbuf.buf_align = header->kernel_alignment;
 	kbuf.buf_min = MIN_KERNEL_LOAD_ADDR;
-	ret = kexec_add_buffer(&kbuf);
+	ret = kexec_add_buffer(&kbuf, true);
 	if (ret)
 		goto out_free_params;
 	kernel_load_addr = kbuf.mem;
@@ -449,7 +449,7 @@ static void *bzImage64_load(struct kimage *image, char *kernel,
 		kbuf.bufsz = kbuf.memsz = initrd_len;
 		kbuf.buf_align = PAGE_SIZE;
 		kbuf.buf_min = MIN_INITRD_LOAD_ADDR;
-		ret = kexec_add_buffer(&kbuf);
+		ret = kexec_add_buffer(&kbuf, true);
 		if (ret)
 			goto out_free_params;
 		initrd_load_addr = kbuf.mem;

@@ -642,7 +642,7 @@ int crash_load_segments(struct kimage *image)
 		 * copied in purgatory after crash. Just add a zero filled
 		 * segment for now to make sure checksum logic works fine.
 		 */
-		ret = kexec_add_buffer(&kbuf);
+		ret = kexec_add_buffer(&kbuf, true);
 		if (ret)
 			return ret;
 		image->arch.backup_load_addr = kbuf.mem;
@@ -661,7 +661,7 @@ int crash_load_segments(struct kimage *image)
 
 	kbuf.memsz = kbuf.bufsz;
 	kbuf.buf_align = ELF_CORE_HEADER_ALIGN;
-	ret = kexec_add_buffer(&kbuf);
+	ret = kexec_add_buffer(&kbuf, true);
 	if (ret) {
 		vfree((void *)image->arch.elf_headers);
 		return ret;

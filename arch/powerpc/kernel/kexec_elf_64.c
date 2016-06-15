@@ -128,7 +128,7 @@ static int elf_exec_load(struct kimage *image, struct elfhdr *ehdr,
 		kbuf.memsz = phdr->p_memsz;
 		kbuf.buf_align = phdr->p_align;
 		kbuf.buf_min = phdr->p_paddr + base;
-		ret = kexec_add_buffer(&kbuf);
+		ret = kexec_add_buffer(&kbuf, true);
 		if (ret)
 			goto out;
 		load_addr = kbuf.mem;
@@ -188,7 +188,7 @@ void *elf64_load(struct kimage *image, char *kernel_buf,
 		kbuf.bufsz = kbuf.memsz = initrd_len;
 		kbuf.buf_align = PAGE_SIZE;
 		kbuf.top_down = false;
-		ret = kexec_add_buffer(&kbuf);
+		ret = kexec_add_buffer(&kbuf, true);
 		if (ret)
 			goto out;
 		initrd_load_addr = kbuf.mem;
@@ -245,7 +245,7 @@ void *elf64_load(struct kimage *image, char *kernel_buf,
 	kbuf.bufsz = kbuf.memsz = fdt_size;
 	kbuf.buf_align = PAGE_SIZE;
 	kbuf.top_down = true;
-	ret = kexec_add_buffer(&kbuf);
+	ret = kexec_add_buffer(&kbuf, true);
 	if (ret)
 		goto out;
 	fdt_load_addr = kbuf.mem;

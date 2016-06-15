@@ -161,6 +161,7 @@ int __weak arch_kexec_add_handover_buffer(struct kimage *image,
 /**
  * kexec_add_handover_buffer - add buffer to be used by the next kernel
  * @kbuf:	Buffer contents and memory parameters.
+ * @checksum:	Should the segment checksum be verified by the purgatory?
  *
  * This function assumes that kexec_mutex is held.
  * On successful return, @kbuf->mem will have the physical address of
@@ -168,14 +169,14 @@ int __weak arch_kexec_add_handover_buffer(struct kimage *image,
  *
  * Return: 0 on success, negative errno on error.
  */
-int kexec_add_handover_buffer(struct kexec_buf *kbuf)
+int kexec_add_handover_buffer(struct kexec_buf *kbuf, bool checksum)
 {
 	int ret;
 
 	if (!kexec_can_hand_over_buffer())
 		return -ENOTSUPP;
 
-	ret = kexec_add_buffer(kbuf);
+	ret = kexec_add_buffer(kbuf, checksum);
 	if (ret)
 		return ret;
 
@@ -611,6 +612,7 @@ int kexec_locate_mem_hole(struct kexec_buf *kbuf)
 /**
  * kexec_add_buffer - place a buffer in a kexec segment
  * @kbuf:	Buffer contents and memory parameters.
+ * @checksum:	Should the segment checksum be verified by the purgatory?
  *
  * This function assumes that kexec_mutex is held.
  * On successful return, @kbuf->mem will have the physical address of
@@ -618,7 +620,7 @@ int kexec_locate_mem_hole(struct kexec_buf *kbuf)
  *
  * Return: 0 on success, negative errno on error.
  */
-int kexec_add_buffer(struct kexec_buf *kbuf)
+int kexec_add_buffer(struct kexec_buf *kbuf, bool checksum)
 {
 
 	struct kexec_segment *ksegment;
@@ -658,6 +660,7 @@ int kexec_add_buffer(struct kexec_buf *kbuf)
 	ksegment->bufsz = kbuf->bufsz;
 	ksegment->mem = kbuf->mem;
 	ksegment->memsz = kbuf->memsz;
+	ksegment->do_checksum = checksum;
 	kbuf->image->nr_segments++;
 	return 0;
 }
@@ -672,7 +675,6 @@ static int kexec_calculate_store_digests(struct kimage *image)
 	char *digest;
 	void *zero_buf;
 	struct kexec_sha_region *sha_regions;
-	struct purgatory_info *pi = &image->purgatory_info;
 
 	zero_buf = __va(page_to_pfn(ZERO_PAGE(0)) << PAGE_SHIFT);
 	zero_buf_sz = PAGE_SIZE;
@@ -712,11 +714,7 @@ static int kexec_calculate_store_digests(struct kimage *image)
 		struct kexec_segment *ksegment;
 
 		ksegment = &image->segment[i];
-		/*
-		 * Skip purgatory as it will be modified once we put digest
-		 * info in purgatory.
-		 */
-		if (ksegment->kbuf == pi->purgatory_buf)
+		if (!ksegment->do_checksum)
 			continue;
 
 		ret = crypto_shash_update(desc, ksegment->kbuf,
@@ -893,8 +891,11 @@ static int __kexec_load_purgatory(struct kimage *image, unsigned long min,
 	if (kbuf.buf_align < bss_align)
 		kbuf.buf_align = bss_align;
 
-	/* Add buffer to segment list */
-	ret = kexec_add_buffer(&kbuf);
+	/*
+	 * Add buffer to segment list. Don't checksum the segment as
+	 * it will be modified once we put digest info in purgatory.
+	 */
+	ret = kexec_add_buffer(&kbuf, false);
 	if (ret)
 		goto out;
 	pi->purgatory_load_addr = kbuf.mem;
