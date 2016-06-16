@@ -21,6 +21,7 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/err.h>
+#include <linux/kexec.h>
 
 #include "ima.h"
 
@@ -104,6 +105,29 @@ void __init ima_load_x509(void)
 }
 #endif
 
+#ifdef CONFIG_KEXEC_FILE
+static void ima_load_kexec_buffer(void)
+{
+	int rc;
+
+	/* Fetch the buffer from the previous kernel, if any. */
+	rc = kexec_get_handover_buffer(&kexec_buffer, &kexec_buffer_size);
+	if (rc == 0) {
+		/* Demonstrate that buffer handover works. */
+		pr_err("kexec buffer contents: %s\n", (char *) kexec_buffer);
+		pr_err("kexec buffer contents after update: %s\n",
+		       (char *) kexec_buffer + 4 * PAGE_SIZE + 10);
+
+		kexec_free_handover_buffer();
+	} else if (rc == -ENOENT)
+		pr_debug("No kexec buffer from the previous kernel.\n");
+	else
+		pr_debug("Error restoring kexec buffer: %d\n", rc);
+}
+#else
+static void ima_load_kexec_buffer(void) { }
+#endif
+
 int __init ima_init(void)
 {
 	u8 pcr_i[TPM_DIGEST_SIZE];
@@ -133,6 +157,8 @@ int __init ima_init(void)
 		return rc;
 
 	ima_init_policy();
+
+	ima_load_kexec_buffer();
 
 	return ima_fs_init();
 }

@@ -15,6 +15,8 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/kexec.h>
+#include <linux/reboot.h>
 #include "ima.h"
 #include "ima_template_lib.h"
 
@@ -181,6 +183,89 @@ static int template_desc_init_fields(const char *template_fmt,
 
 	return 0;
 }
+
+#ifdef CONFIG_KEXEC_FILE
+void *kexec_buffer = NULL;
+size_t kexec_buffer_size = 0;
+
+/* Physical address of the measurement buffer in the next kernel. */
+unsigned long kexec_buffer_load_addr = 0;
+
+/*
+ * Called during reboot. IMA can add here new events that were generated after
+ * the kexec image was loaded.
+ */
+static int ima_update_kexec_buffer(struct notifier_block *self,
+				   unsigned long action, void *data)
+{
+	int ret;
+
+	if (!kexec_in_progress)
+		return NOTIFY_OK;
+
+	/*
+	 * Add content deep in the buffer to show that we can update
+	 * all of it.
+	 */
+	strcpy(kexec_buffer + 4 * PAGE_SIZE + 10,
+	       "Updated kexec buffer contents.");
+
+	ret = kexec_update_segment(kexec_buffer, kexec_buffer_size,
+				   kexec_buffer_load_addr, kexec_buffer_size);
+	if (ret)
+		pr_err("Error updating kexec buffer: %d\n", ret);
+
+	return NOTIFY_OK;
+}
+
+struct notifier_block update_buffer_nb = {
+	.notifier_call = ima_update_kexec_buffer,
+};
+
+/*
+ * Called during kexec_file_load so that IMA can add a segment to the kexec
+ * image with the measurement event log for the next kernel.
+ */
+void ima_add_kexec_buffer(struct kimage *image)
+{
+	struct kexec_buf kbuf = { .image = image, .buf_align = PAGE_SIZE,
+				  .buf_min = 0, .buf_max = ULONG_MAX,
+				  .top_down = true };
+	bool first_kexec_load = kexec_buffer_load_addr == 0;
+	int ret;
+
+	if (!kexec_can_hand_over_buffer())
+		return;
+
+	if (!first_kexec_load)
+		kfree(kexec_buffer);
+
+	/* Create a relatively big buffer, for testing. */
+	kexec_buffer_size = kbuf.bufsz = kbuf.memsz = 5 * PAGE_SIZE;
+	kexec_buffer = kbuf.buffer = kzalloc(kexec_buffer_size, GFP_KERNEL);
+	if (!kexec_buffer) {
+		pr_err("Not enough memory for the kexec measurement buffer.\n");
+		return;
+	}
+
+	/* Add some content for demonstration purposes. */
+	strcpy(kexec_buffer, "Buffer contents at kexec load time.");
+
+	/* Ask not to checksum the segment, we may have to update it later. */
+	ret = kexec_add_handover_buffer(&kbuf, false);
+	if (ret) {
+		pr_err("Error passing over kexec measurement buffer.\n");
+		return;
+	}
+	kexec_buffer_load_addr = kbuf.mem;
+
+	if (first_kexec_load)
+		register_reboot_notifier(&update_buffer_nb);
+
+	pr_debug("kexec measurement buffer for the loaded kernel at 0x%lx.\n",
+		 kexec_buffer_load_addr);
+}
+#endif /* CONFIG_KEXEC_FILE */
 
 struct ima_template_desc *ima_template_desc_current(void)
 {

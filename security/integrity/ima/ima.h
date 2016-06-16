@@ -102,6 +102,11 @@ struct ima_queue_entry {
 };
 extern struct list_head ima_measurements;	/* list of all measurements */
 
+#ifdef CONFIG_KEXEC_FILE
+extern void *kexec_buffer;
+extern size_t kexec_buffer_size;
+#endif
+
 /* Internal IMA function definitions */
 int ima_init(void);
 int ima_fs_init(void);
