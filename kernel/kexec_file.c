@@ -92,6 +92,9 @@ void kimage_file_post_load_cleanup(struct kimage *image)
 	vfree(image->initrd_buf);
 	image->initrd_buf = NULL;
 
+	vfree(image->dtb_buf);
+	image->dtb_buf = NULL;
+
 	kfree(image->cmdline_buf);
 	image->cmdline_buf = NULL;
 
