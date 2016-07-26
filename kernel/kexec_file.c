@@ -25,6 +25,9 @@
 #include <linux/vmalloc.h>
 #include "kexec_internal.h"
 
+#define MAX_FDSET_SIZE	(sizeof(struct kexec_fdset) + \
+				KEXEC_SEGMENT_MAX * sizeof(struct kexec_file_fd))
+
 /*
  * Declare these symbols weak so that if architecture provides a purgatory,
  * these will be overridden.
@@ -116,6 +119,22 @@ void kimage_file_post_load_cleanup(struct kimage *image)
 	image->image_loader_data = NULL;
 }
 
+/**
+ * arch_kexec_verify_buffer() - check that the given kexec file is valid
+ *
+ * Device trees in particular can contain properties that may make the kernel
+ * execute code that it wasn't supposed to (e.g., use the wrong entry point
+ * when calling firmware functions). Because of this, the kernel needs to
+ * verify that it is safe to use the device tree blob passed from userspace.
+ *
+ * Return: 0 on success, negative errno on error.
+ */
+int __weak arch_kexec_verify_buffer(enum kexec_file_type type, const void *buf,
+				    unsigned long size)
+{
+	return -EINVAL;
+}
+
 /*
  * In file mode list of segments is prepared by kernel. Copy relevant
  * data from user space, do error checking, prepare segment list
@@ -123,7 +142,8 @@ void kimage_file_post_load_cleanup(struct kimage *image)
 static int
 kimage_file_prepare_segments(struct kimage *image, int kernel_fd, int initrd_fd,
 			     const char __user *cmdline_ptr,
-			     unsigned long cmdline_len, unsigned flags)
+			     unsigned long cmdline_len, unsigned long flags,
+			     const struct kexec_fdset __user *ufdset)
 {
 	int ret = 0;
 	void *ldata;
@@ -158,6 +178,55 @@ kimage_file_prepare_segments(struct kimage *image, int kernel_fd, int initrd_fd,
 		if (ret)
 			goto out;
 		image->initrd_buf_len = size;
+	}
+
+	if (flags & KEXEC_FILE_EXTRA_FDS) {
+		int nr_fds, i;
+		size_t fdset_size;
+		char fdset_buf[MAX_FDSET_SIZE];
+		struct kexec_fdset *fdset = (struct kexec_fdset *) fdset_buf;
+
+		ret = copy_from_user(&nr_fds, ufdset, sizeof(int));
+		if (ret) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		if (nr_fds > KEXEC_SEGMENT_MAX) {
+			ret = -E2BIG;
+			goto out;
+		}
+
+		fdset_size = sizeof(struct kexec_fdset)
+				+ nr_fds * sizeof(struct kexec_file_fd);
+
+		ret = copy_from_user(fdset, ufdset, fdset_size);
+		if (ret) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		for (i = 0; i < fdset->nr_fds; i++) {
+			if (fdset->fds[i].type == KEXEC_FILE_TYPE_PARTIAL_DTB) {
+				ret = kernel_read_file_from_fd(fdset->fds[i].fd,
+						&image->dtb_buf, &size, INT_MAX,
+						READING_KEXEC_PARTIAL_DTB);
+				if (ret)
+					goto out;
+				image->dtb_buf_len = size;
+
+				ret = arch_kexec_verify_buffer(KEXEC_FILE_TYPE_PARTIAL_DTB,
+							       image->dtb_buf,
+							       image->dtb_buf_len);
+				if (ret)
+					goto out;
+			} else {
+				pr_debug("unknown file type %d failed.\n",
+						fdset->fds[i].type);
+				ret = -EINVAL;
+				goto out;
+			}
+		}
 	}
 
 	if (cmdline_len) {
@@ -202,7 +271,8 @@ out:
 static int
 kimage_file_alloc_init(struct kimage **rimage, int kernel_fd,
 		       int initrd_fd, const char __user *cmdline_ptr,
-		       unsigned long cmdline_len, unsigned long flags)
+		       unsigned long cmdline_len, unsigned long flags,
+		       const struct kexec_fdset __user *ufdset)
 {
 	int ret;
 	struct kimage *image;
@@ -221,7 +291,8 @@ kimage_file_alloc_init(struct kimage **rimage, int kernel_fd,
 	}
 
 	ret = kimage_file_prepare_segments(image, kernel_fd, initrd_fd,
-					   cmdline_ptr, cmdline_len, flags);
+					   cmdline_ptr, cmdline_len, flags,
+					   ufdset);
 	if (ret)
 		goto out_free_image;
 
@@ -256,9 +327,9 @@ out_free_image:
 	return ret;
 }
 
-SYSCALL_DEFINE5(kexec_file_load, int, kernel_fd, int, initrd_fd,
+SYSCALL_DEFINE6(kexec_file_load, int, kernel_fd, int, initrd_fd,
 		unsigned long, cmdline_len, const char __user *, cmdline_ptr,
-		unsigned long, flags)
+		unsigned long, flags, const struct kexec_fdset __user *, ufdset)
 {
 	int ret = 0, i;
 	struct kimage **dest_image, *image;
@@ -295,7 +366,7 @@ SYSCALL_DEFINE5(kexec_file_load, int, kernel_fd, int, initrd_fd,
 		kimage_free(xchg(&kexec_crash_image, NULL));
 
 	ret = kimage_file_alloc_init(&image, kernel_fd, initrd_fd, cmdline_ptr,
-				     cmdline_len, flags);
+				     cmdline_len, flags, ufdset);
 	if (ret)
 		goto out;
 

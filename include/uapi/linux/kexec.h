@@ -23,6 +23,28 @@
 #define KEXEC_FILE_UNLOAD	0x00000001
 #define KEXEC_FILE_ON_CRASH	0x00000002
 #define KEXEC_FILE_NO_INITRAMFS	0x00000004
+#define KEXEC_FILE_EXTRA_FDS	0x00000008
+
+enum kexec_file_type {
+	KEXEC_FILE_TYPE_KERNEL,
+	KEXEC_FILE_TYPE_INITRAMFS,
+
+	/*
+	 * Device Tree Blob containing just the nodes and properties that
+	 * the kexec_file_load caller wants to add or modify.
+	 */
+	KEXEC_FILE_TYPE_PARTIAL_DTB,
+};
+
+struct kexec_file_fd {
+	enum kexec_file_type type;
+	int fd;
+};
+
+struct kexec_fdset {
+	int nr_fds;
+	struct kexec_file_fd fds[0];
+};
 
 /* These values match the ELF architecture values.
  * Unless there is a good reason that should continue to be the case.

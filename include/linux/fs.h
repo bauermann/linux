@@ -2656,6 +2656,7 @@ extern int do_pipe_flags(int *, int);
 	id(MODULE, kernel-module)		\
 	id(KEXEC_IMAGE, kexec-image)		\
 	id(KEXEC_INITRAMFS, kexec-initramfs)	\
+	id(KEXEC_PARTIAL_DTB, kexec-partial-dtb)		\
 	id(POLICY, security-policy)		\
 	id(MAX_ID, )
 
