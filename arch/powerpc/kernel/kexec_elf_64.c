@@ -210,6 +210,15 @@ void *elf64_load(struct kimage *image, char *kernel_buf,
 		goto out;
 	}
 
+	/* Add nodes and properties from the DTB passed by userspace. */
+	if (image->dtb_buf) {
+		ret = merge_partial_dtb(fdt, image->dtb_buf);
+		if (ret) {
+			pr_err("Error merging partial device tree.\n");
+			goto out;
+		}
+	}
+
 	ret = setup_new_fdt(fdt, initrd_load_addr, initrd_len, cmdline);
 	if (ret)
 		goto out;

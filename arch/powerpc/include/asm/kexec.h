@@ -99,6 +99,7 @@ int setup_purgatory(struct kimage *image, const void *slave_code,
 int setup_new_fdt(void *fdt, unsigned long initrd_load_addr,
 		  unsigned long initrd_len, const char *cmdline);
 bool find_debug_console(const void *fdt, int chosen_node);
+int merge_partial_dtb(void *to, const void *from);
 #endif /* CONFIG_KEXEC_FILE */
 
 #else /* !CONFIG_KEXEC */
