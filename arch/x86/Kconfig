@@ -1792,6 +1792,11 @@ config SECCOMP
 
 source kernel/Kconfig.hz
 
+# x86 needs to relocate the purgatory after the checksum is calculated,
+# therefore the purgatory cannot be part of the kexec image checksum.
+config ARCH_MODIFIES_KEXEC_PURGATORY
+	bool
+
 config KEXEC
 	bool "kexec system call"
 	select KEXEC_CORE
@@ -1812,6 +1817,7 @@ config KEXEC
 config KEXEC_FILE
 	bool "kexec file based system call"
 	select KEXEC_CORE
+	select ARCH_MODIFIES_KEXEC_PURGATORY
 	select BUILD_BIN2C
 	depends on X86_64
 	depends on CRYPTO=y
