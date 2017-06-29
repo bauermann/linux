@@ -683,3 +683,19 @@ int pkcs7_note_signed_info(void *context, size_t hdrlen,
 		return -ENOMEM;
 	return 0;
 }
+
+/**
+ * pkcs7_get_message_sig - get signature in @pkcs7
+ */
+const struct public_key_signature *pkcs7_get_message_sig(
+					const struct pkcs7_message *pkcs7)
+{
+	/*
+	 * This function doesn't support messages with more than one signature,
+	 * so don't return anything in that case.
+	 */
+	if (pkcs7->signed_infos == NULL || pkcs7->signed_infos->next != NULL)
+		return NULL;
+
+	return pkcs7->signed_infos->sig;
+}
