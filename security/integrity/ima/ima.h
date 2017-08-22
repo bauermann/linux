@@ -157,7 +157,8 @@ void ima_init_template_list(void);
 
 static inline bool is_ima_sig(const struct evm_ima_xattr_data *xattr_value)
 {
-	return xattr_value && xattr_value->type == EVM_IMA_XATTR_DIGSIG;
+	return xattr_value && (xattr_value->type == EVM_IMA_XATTR_DIGSIG ||
+			       xattr_value->type == IMA_MODSIG);
 }
 
 /*
@@ -253,6 +254,8 @@ enum integrity_status ima_get_cache_status(struct integrity_iint_cache *iint,
 					   enum ima_hooks func);
 enum hash_algo ima_get_hash_algo(struct evm_ima_xattr_data *xattr_value,
 				 int xattr_len);
+bool ima_xattr_sig_known_key(const struct evm_ima_xattr_data *xattr_value,
+			     int xattr_len);
 int ima_read_xattr(struct dentry *dentry,
 		   struct evm_ima_xattr_data **xattr_value);
 
@@ -289,6 +292,12 @@ static inline enum hash_algo
 ima_get_hash_algo(struct evm_ima_xattr_data *xattr_value, int xattr_len)
 {
 	return ima_hash_algo;
+}
+
+static inline bool ima_xattr_sig_known_key(const struct evm_ima_xattr_data
+					   *xattr_value, int xattr_len)
+{
+	return false;
 }
 
 static inline int ima_read_xattr(struct dentry *dentry,

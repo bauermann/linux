@@ -183,7 +183,7 @@ static int process_measurement(struct file *file, const struct cred *cred,
 	struct evm_ima_xattr_data *xattr_value = NULL;
 	int xattr_len = 0;
 	bool violation_check;
-	enum hash_algo hash_algo;
+	enum hash_algo hash_algo = HASH_ALGO__LAST;
 
 	if (!ima_policy_flag || !S_ISREG(inode->i_mode))
 		return 0;
@@ -277,11 +277,24 @@ static int process_measurement(struct file *file, const struct cred *cred,
 
 	template_desc = ima_template_desc_current();
 	if ((action & IMA_APPRAISE_SUBMASK) ||
-		    strcmp(template_desc->name, IMA_TEMPLATE_IMA_NAME) != 0)
+	    strcmp(template_desc->name, IMA_TEMPLATE_IMA_NAME) != 0) {
 		/* read 'security.ima' */
 		xattr_len = ima_read_xattr(file_dentry(file), &xattr_value);
+		if (iint->flags & IMA_MODSIG_ALLOWED &&
+		    (xattr_len <= 0 || !ima_xattr_sig_known_key(xattr_value,
+								xattr_len))) {
+			/*
+			 * Even if we end up using a modsig, hash_algo should
+			 * come from the xattr (or even the default hash algo).
+			 */
+			hash_algo = ima_get_hash_algo(xattr_value, xattr_len);
+			ima_read_modsig(func, buf, size, &xattr_value,
+					&xattr_len);
+		}
+	}
 
-	hash_algo = ima_get_hash_algo(xattr_value, xattr_len);
+	if (hash_algo == HASH_ALGO__LAST)
+		hash_algo = ima_get_hash_algo(xattr_value, xattr_len);
 
 	rc = ima_collect_measurement(iint, file, buf, size, hash_algo);
 	if (rc != 0 && rc != -EBADF && rc != -EINVAL)
@@ -309,7 +322,7 @@ out_locked:
 	     !(iint->flags & IMA_NEW_FILE))
 		rc = -EACCES;
 	mutex_unlock(&iint->mutex);
-	kfree(xattr_value);
+	ima_free_xattr_data(xattr_value);
 out:
 	if (pathbuf)
 		__putname(pathbuf);
