@@ -33,6 +33,10 @@ static int pkcs7_digest(struct pkcs7_message *pkcs7,
 
 	kenter(",%u,%s", sinfo->index, sinfo->sig->hash_algo);
 
+	/* The digest was calculated already. */
+	if (sig->digest)
+		return 0;
+
 	if (!sinfo->sig->hash_algo)
 		return -ENOPKG;
 
@@ -120,6 +124,27 @@ error_no_desc:
 	crypto_free_shash(tfm);
 	kleave(" = %d", ret);
 	return ret;
+}
+
+int pkcs7_get_digest(struct pkcs7_message *pkcs7, const u8 **buf, u8 *len)
+{
+	struct pkcs7_signed_info *sinfo = pkcs7->signed_infos;
+	int ret;
+
+	/*
+	 * This function doesn't support messages with more than one signature.
+	 */
+	if (sinfo == NULL || sinfo->next != NULL)
+		return -EBADMSG;
+
+	ret = pkcs7_digest(pkcs7, sinfo);
+	if (ret)
+		return ret;
+
+	*buf = sinfo->sig->digest;
+	*len = sinfo->sig->digest_size;
+
+	return 0;
 }
 
 /*
