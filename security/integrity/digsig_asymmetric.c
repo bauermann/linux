@@ -79,6 +79,39 @@ static struct key *request_asymmetric_key(struct key *keyring, uint32_t keyid)
 	return key;
 }
 
+static struct key *asymmetric_key_from_sig(struct key *keyring, const char *sig,
+					   int siglen)
+{
+	const struct signature_v2_hdr *hdr = (struct signature_v2_hdr *) sig;
+
+	if (siglen <= sizeof(*hdr))
+		return ERR_PTR(-EBADMSG);
+
+	siglen -= sizeof(*hdr);
+
+	if (siglen != be16_to_cpu(hdr->sig_size))
+		return ERR_PTR(-EBADMSG);
+
+	if (hdr->hash_algo >= HASH_ALGO__LAST)
+		return ERR_PTR(-ENOPKG);
+
+	return request_asymmetric_key(keyring, be32_to_cpu(hdr->keyid));
+}
+
+bool asymmetric_sig_has_known_key(struct key *keyring, const char *sig,
+				  int siglen)
+{
+	struct key *key;
+
+	key = asymmetric_key_from_sig(keyring, sig, siglen);
+	if (IS_ERR_OR_NULL(key))
+		return false;
+
+	key_put(key);
+
+	return true;
+}
+
 int asymmetric_verify(struct key *keyring, const char *sig,
 		      int siglen, const char *data, int datalen)
 {
@@ -87,18 +120,7 @@ int asymmetric_verify(struct key *keyring, const char *sig,
 	struct key *key;
 	int ret = -ENOMEM;
 
-	if (siglen <= sizeof(*hdr))
-		return -EBADMSG;
-
-	siglen -= sizeof(*hdr);
-
-	if (siglen != be16_to_cpu(hdr->sig_size))
-		return -EBADMSG;
-
-	if (hdr->hash_algo >= HASH_ALGO__LAST)
-		return -ENOPKG;
-
-	key = request_asymmetric_key(keyring, be32_to_cpu(hdr->keyid));
+	key = asymmetric_key_from_sig(keyring, sig, siglen);
 	if (IS_ERR(key))
 		return PTR_ERR(key);
 
@@ -109,7 +131,7 @@ int asymmetric_verify(struct key *keyring, const char *sig,
 	pks.digest = (u8 *)data;
 	pks.digest_size = datalen;
 	pks.s = hdr->sig;
-	pks.s_size = siglen;
+	pks.s_size = siglen - sizeof(*hdr);
 	ret = verify_signature(key, &pks);
 	key_put(key);
 	pr_debug("%s() = %d\n", __func__, ret);
