@@ -20,4 +20,7 @@
 #define U_PARAMETER		H_PARAMETER
 #define U_SUCCESS		H_SUCCESS
 
+/* opcodes */
+#define UV_ESM				0xF110
+
 #endif /* _ASM_POWERPC_ULTRAVISOR_API_H */
